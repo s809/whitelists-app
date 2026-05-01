@@ -78,12 +78,15 @@ internal fun MainScreen(
   state: TrackerState,
   checkProgress: CheckProgress? = null,
   saveFeedback: SaveFeedback = SaveFeedback.Idle,
-  onSave: (Boolean, String, String, String, String) -> Unit,
+  onSave: (Boolean, String, String, String, String, String) -> Unit,
   onRunNow: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   var monitoringEnabled by rememberSaveable { mutableStateOf(state.settings.monitoringEnabled) }
   var intervalMinutes by rememberSaveable { mutableStateOf(state.settings.intervalMinutes.toString()) }
+  var activeRecheckIntervalMinutes by rememberSaveable {
+    mutableStateOf(state.settings.activeRecheckIntervalMinutes.toString())
+  }
   var timeoutSeconds by rememberSaveable { mutableStateOf(state.settings.timeoutSeconds.toString()) }
   var controlUrls by rememberSaveable { mutableStateOf(state.settings.controlUrls.joinToString("\n")) }
   var testUrls by rememberSaveable { mutableStateOf(state.settings.testUrls.joinToString("\n")) }
@@ -91,6 +94,7 @@ internal fun MainScreen(
   LaunchedEffect(state.settings) {
     monitoringEnabled = state.settings.monitoringEnabled
     intervalMinutes = state.settings.intervalMinutes.toString()
+    activeRecheckIntervalMinutes = state.settings.activeRecheckIntervalMinutes.toString()
     timeoutSeconds = state.settings.timeoutSeconds.toString()
     controlUrls = state.settings.controlUrls.joinToString("\n")
     testUrls = state.settings.testUrls.joinToString("\n")
@@ -129,11 +133,22 @@ internal fun MainScreen(
       OutlinedTextField(
         value = intervalMinutes,
         onValueChange = { intervalMinutes = it.filter(Char::isDigit) },
-        label = { Text("Интервал, мин") },
+        label = { Text("Обычная проверка, мин") },
         supportingText = { Text("Минимум Android: 15") },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         modifier = Modifier.weight(1f),
       )
+      OutlinedTextField(
+        value = activeRecheckIntervalMinutes,
+        onValueChange = { activeRecheckIntervalMinutes = it.filter(Char::isDigit) },
+        label = { Text("Перепроверка, мин") },
+        supportingText = { Text("Если режим активен") },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = Modifier.weight(1f),
+      )
+    }
+
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
       OutlinedTextField(
         value = timeoutSeconds,
         onValueChange = { timeoutSeconds = it.filter(Char::isDigit) },
@@ -162,7 +177,16 @@ internal fun MainScreen(
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
       Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
         Button(
-          onClick = { onSave(monitoringEnabled, intervalMinutes, timeoutSeconds, controlUrls, testUrls) },
+          onClick = {
+            onSave(
+              monitoringEnabled,
+              intervalMinutes,
+              activeRecheckIntervalMinutes,
+              timeoutSeconds,
+              controlUrls,
+              testUrls,
+            )
+          },
           enabled = saveFeedback !is SaveFeedback.Saving,
         ) {
           if (saveFeedback is SaveFeedback.Saving) {
@@ -273,7 +297,7 @@ fun MainScreenPreview() {
   MyApplicationTheme {
     MainScreen(
       state = TrackerState(),
-      onSave = { _, _, _, _, _ -> },
+      onSave = { _, _, _, _, _, _ -> },
       onRunNow = {},
       modifier = Modifier.width(420.dp),
     )
@@ -286,7 +310,7 @@ fun MainScreenPortraitPreview() {
   MyApplicationTheme {
     MainScreen(
       state = TrackerState(),
-      onSave = { _, _, _, _, _ -> },
+      onSave = { _, _, _, _, _, _ -> },
       onRunNow = {},
     )
   }

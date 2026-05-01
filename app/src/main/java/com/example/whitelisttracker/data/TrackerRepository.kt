@@ -19,6 +19,10 @@ class TrackerRepository(private val context: Context) {
       TrackerSettings(
         monitoringEnabled = prefs[Keys.monitoringEnabled] ?: true,
         intervalMinutes = sanitizeIntervalMinutes(prefs[Keys.intervalMinutes] ?: MIN_INTERVAL_MINUTES),
+        activeRecheckIntervalMinutes =
+          sanitizeActiveRecheckIntervalMinutes(
+            prefs[Keys.activeRecheckIntervalMinutes] ?: DEFAULT_ACTIVE_RECHECK_INTERVAL_MINUTES,
+          ),
         timeoutSeconds = sanitizeTimeoutSeconds(prefs[Keys.timeoutSeconds] ?: DEFAULT_TIMEOUT_SECONDS),
         controlUrls = decodeUrls(prefs[Keys.controlUrls], TrackerDefaults.controlUrls),
         testUrls = decodeUrls(prefs[Keys.testUrls], TrackerDefaults.testUrls),
@@ -46,6 +50,7 @@ class TrackerRepository(private val context: Context) {
   suspend fun saveSettings(
     monitoringEnabled: Boolean,
     intervalMinutes: Int,
+    activeRecheckIntervalMinutes: Int,
     timeoutSeconds: Int,
     controlUrls: List<String>,
     testUrls: List<String>,
@@ -53,6 +58,7 @@ class TrackerRepository(private val context: Context) {
     context.trackerDataStore.edit { prefs ->
       prefs[Keys.monitoringEnabled] = monitoringEnabled
       prefs[Keys.intervalMinutes] = sanitizeIntervalMinutes(intervalMinutes)
+      prefs[Keys.activeRecheckIntervalMinutes] = sanitizeActiveRecheckIntervalMinutes(activeRecheckIntervalMinutes)
       prefs[Keys.timeoutSeconds] = sanitizeTimeoutSeconds(timeoutSeconds)
       prefs[Keys.controlUrls] = encodeUrls(controlUrls.ifEmpty { TrackerDefaults.controlUrls })
       prefs[Keys.testUrls] = encodeUrls(testUrls.ifEmpty { TrackerDefaults.testUrls })
@@ -115,6 +121,7 @@ class TrackerRepository(private val context: Context) {
   private object Keys {
     val monitoringEnabled = booleanPreferencesKey("monitoring_enabled")
     val intervalMinutes = intPreferencesKey("interval_minutes")
+    val activeRecheckIntervalMinutes = intPreferencesKey("active_recheck_interval_minutes")
     val timeoutSeconds = intPreferencesKey("timeout_seconds")
     val controlUrls = stringPreferencesKey("control_urls")
     val testUrls = stringPreferencesKey("test_urls")

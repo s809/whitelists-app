@@ -6,6 +6,7 @@ import java.util.Locale
 import kotlin.math.max
 
 const val MIN_INTERVAL_MINUTES = 15
+const val DEFAULT_ACTIVE_RECHECK_INTERVAL_MINUTES = 5
 const val DEFAULT_TIMEOUT_SECONDS = 5
 
 object TrackerDefaults {
@@ -16,6 +17,7 @@ object TrackerDefaults {
 data class TrackerSettings(
   val monitoringEnabled: Boolean = true,
   val intervalMinutes: Int = MIN_INTERVAL_MINUTES,
+  val activeRecheckIntervalMinutes: Int = DEFAULT_ACTIVE_RECHECK_INTERVAL_MINUTES,
   val timeoutSeconds: Int = DEFAULT_TIMEOUT_SECONDS,
   val controlUrls: List<String> = TrackerDefaults.controlUrls,
   val testUrls: List<String> = TrackerDefaults.testUrls,
@@ -68,6 +70,8 @@ fun parseUrlList(input: String): List<String> =
     .toList()
 
 fun sanitizeIntervalMinutes(value: Int): Int = max(MIN_INTERVAL_MINUTES, value)
+
+fun sanitizeActiveRecheckIntervalMinutes(value: Int): Int = max(1, value)
 
 fun sanitizeTimeoutSeconds(value: Int): Int = max(1, value)
 

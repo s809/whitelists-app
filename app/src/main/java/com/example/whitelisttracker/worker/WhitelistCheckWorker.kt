@@ -26,6 +26,7 @@ class WhitelistCheckWorker(
     val settings = repository.settingsSnapshot()
 
     if (!settings.monitoringEnabled) {
+      WhitelistWorkScheduler.cancelActiveRechecks(applicationContext, id)
       WhitelistNotifications.cancelCheckProgress(applicationContext)
       WhitelistNotifications.cancelActive(applicationContext)
       return Result.success()
@@ -61,11 +62,22 @@ class WhitelistCheckWorker(
         )
 
       when (val transition = repository.applyCheckSummary(summary)) {
-        is ModeTransition.Entered -> WhitelistNotifications.showActive(applicationContext, transition.startedAtMillis)
-        is ModeTransition.StillActive -> WhitelistNotifications.showActive(applicationContext, transition.startedAtMillis)
-        is ModeTransition.Ended ->
+        is ModeTransition.Entered -> {
+          WhitelistNotifications.showActive(applicationContext, transition.startedAtMillis)
+          WhitelistWorkScheduler.scheduleActiveRecheck(applicationContext, id, settings.activeRecheckIntervalMinutes)
+        }
+        is ModeTransition.StillActive -> {
+          WhitelistNotifications.showActive(applicationContext, transition.startedAtMillis)
+          WhitelistWorkScheduler.scheduleActiveRecheck(applicationContext, id, settings.activeRecheckIntervalMinutes)
+        }
+        is ModeTransition.Ended -> {
           WhitelistNotifications.showEnded(applicationContext, transition.endedAtMillis, transition.durationMillis)
-        ModeTransition.StillInactive -> WhitelistNotifications.cancelActive(applicationContext)
+          WhitelistWorkScheduler.cancelActiveRechecks(applicationContext, id)
+        }
+        ModeTransition.StillInactive -> {
+          WhitelistNotifications.cancelActive(applicationContext)
+          WhitelistWorkScheduler.cancelActiveRechecks(applicationContext, id)
+        }
       }
 
       return Result.success()

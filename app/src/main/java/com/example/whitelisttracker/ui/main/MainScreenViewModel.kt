@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import me.nonick.whitelisttracker.data.DEFAULT_ACTIVE_RECHECK_INTERVAL_MINUTES
 import me.nonick.whitelisttracker.data.DEFAULT_TIMEOUT_SECONDS
 import me.nonick.whitelisttracker.data.MIN_INTERVAL_MINUTES
 import me.nonick.whitelisttracker.data.TrackerRepository
@@ -48,6 +49,7 @@ class MainScreenViewModel(
   fun saveSettings(
     monitoringEnabled: Boolean,
     intervalMinutesText: String,
+    activeRecheckIntervalMinutesText: String,
     timeoutSecondsText: String,
     controlUrlsText: String,
     testUrlsText: String,
@@ -58,6 +60,8 @@ class MainScreenViewModel(
           repository.saveSettings(
             monitoringEnabled = monitoringEnabled,
             intervalMinutes = intervalMinutesText.toIntOrNull() ?: MIN_INTERVAL_MINUTES,
+            activeRecheckIntervalMinutes =
+              activeRecheckIntervalMinutesText.toIntOrNull() ?: DEFAULT_ACTIVE_RECHECK_INTERVAL_MINUTES,
             timeoutSeconds = timeoutSecondsText.toIntOrNull() ?: DEFAULT_TIMEOUT_SECONDS,
             controlUrls = parseUrlList(controlUrlsText),
             testUrls = parseUrlList(testUrlsText),

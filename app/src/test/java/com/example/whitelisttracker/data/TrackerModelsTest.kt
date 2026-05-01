@@ -39,4 +39,11 @@ class TrackerModelsTest {
     assertEquals(MIN_INTERVAL_MINUTES, sanitizeIntervalMinutes(5))
     assertEquals(30, sanitizeIntervalMinutes(30))
   }
+
+  @Test
+  fun activeRecheckInterval_hasFiveMinuteDefaultAndOneMinuteMinimum() {
+    assertEquals(5, TrackerSettings().activeRecheckIntervalMinutes)
+    assertEquals(1, sanitizeActiveRecheckIntervalMinutes(0))
+    assertEquals(5, sanitizeActiveRecheckIntervalMinutes(5))
+  }
 }
