@@ -2,13 +2,16 @@ package me.nonick.whitelisttracker.ui.main
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -18,22 +21,28 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.delay
 import androidx.navigation3.runtime.NavKey
 import me.nonick.whitelisttracker.data.TrackerRepository
 import me.nonick.whitelisttracker.data.TrackerState
@@ -268,17 +277,36 @@ private fun CheckProgressSection(progress: CheckProgress) {
 @Composable
 private fun StatusSection(state: TrackerState) {
   val status = state.status
-  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+  val currentTimeMillis = currentTimeMillisTicker(status.whitelistModeActive)
+  val hasLastMode = status.lastEndedAtMillis != null || status.lastDurationMillis != null
+
+  Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
     Text("Статус", style = MaterialTheme.typography.titleLarge)
     Text(
       if (status.whitelistModeActive) "Обнаружен режим белых списков" else "Режим белых списков не обнаружен",
       color = if (status.whitelistModeActive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
       style = MaterialTheme.typography.titleMedium,
     )
-    status.modeStartedAtMillis?.let { Text("Начало: ${formatTimestamp(it)}") }
-    status.lastEndedAtMillis?.let { Text("Последнее завершение: ${formatTimestamp(it)}") }
-    status.lastDurationMillis?.let { Text("Последняя длительность: ${formatDurationMillis(it)}") }
-    status.lastCheckAtMillis?.let { Text("Последняя проверка: ${formatTimestamp(it)}") }
+
+    if (status.whitelistModeActive) {
+      StatusInfoGroup("Текущий режим") {
+        status.modeStartedAtMillis?.let { startedAtMillis ->
+          StatusInfoRow("Активен с", formatTimestamp(startedAtMillis))
+          StatusInfoRow("Длится сейчас", formatDurationMillis(currentTimeMillis - startedAtMillis))
+        }
+        StatusInfoRow("Повторная проверка", "каждые ${state.settings.activeRecheckIntervalMinutes} мин")
+        status.lastCheckAtMillis?.let { StatusInfoRow("Последняя проверка", formatTimestamp(it)) }
+      }
+    } else if (hasLastMode) {
+      StatusInfoGroup("Последний режим") {
+        status.lastEndedAtMillis?.let { StatusInfoRow("Завершился", formatTimestamp(it)) }
+        status.lastDurationMillis?.let { StatusInfoRow("Длительность", formatDurationMillis(it)) }
+      }
+    }
+
+    if (!status.whitelistModeActive) {
+      status.lastCheckAtMillis?.let { Text("Последняя проверка: ${formatTimestamp(it)}") }
+    }
     Text("Контрольная группа: ${status.controlSuccessCount}/${status.controlTotalCount} ответили")
     Text("Тестовая группа: ${status.testSuccessCount}/${status.testTotalCount} ответили")
     status.lastError?.let { Text("Ошибка: $it", color = MaterialTheme.colorScheme.error) }
@@ -287,6 +315,76 @@ private fun StatusSection(state: TrackerState) {
       "URL считается доступным, если получен любой HTTP-ответ.",
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+  }
+}
+
+@Composable
+private fun currentTimeMillisTicker(enabled: Boolean): Long {
+  var currentTimeMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+  LaunchedEffect(enabled) {
+    if (!enabled) return@LaunchedEffect
+    while (true) {
+      currentTimeMillis = System.currentTimeMillis()
+      delay(1000L)
+    }
+  }
+  return currentTimeMillis
+}
+
+@Composable
+private fun StatusInfoGroup(
+  title: String,
+  content: @Composable ColumnScope.() -> Unit,
+) {
+  Surface(
+    modifier =
+      Modifier
+        .fillMaxWidth()
+        .padding(vertical = 2.dp),
+    shape = RoundedCornerShape(8.dp),
+    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f),
+  ) {
+    Column(
+      modifier = Modifier.padding(12.dp),
+      verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+      Text(title, style = MaterialTheme.typography.titleSmall)
+      Column(
+        modifier =
+          Modifier
+            .fillMaxWidth()
+            .padding(start = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        content = content,
+      )
+    }
+  }
+}
+
+@Composable
+private fun StatusInfoRow(
+  label: String,
+  value: String,
+  valueColor: Color = MaterialTheme.colorScheme.onSurface,
+) {
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.spacedBy(12.dp),
+    verticalAlignment = Alignment.Top,
+  ) {
+    Text(
+      label,
+      modifier = Modifier.weight(1f),
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Text(
+      value,
+      modifier = Modifier.weight(1.35f),
+      style = MaterialTheme.typography.bodyMedium,
+      color = valueColor,
+      textAlign = TextAlign.End,
     )
   }
 }
