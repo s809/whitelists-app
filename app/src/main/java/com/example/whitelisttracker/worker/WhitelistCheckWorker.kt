@@ -71,7 +71,7 @@ class WhitelistCheckWorker(
           WhitelistWorkScheduler.scheduleActiveRecheck(applicationContext, id, settings.activeRecheckIntervalMinutes)
         }
         is ModeTransition.Ended -> {
-          WhitelistNotifications.showEnded(applicationContext, transition.endedAtMillis, transition.durationMillis)
+          WhitelistNotifications.showEnded(applicationContext, transition.startedAtMillis, transition.durationMillis)
           WhitelistWorkScheduler.cancelActiveRechecks(applicationContext, id)
         }
         ModeTransition.StillInactive -> {
