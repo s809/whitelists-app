@@ -10,7 +10,7 @@ const val DEFAULT_ACTIVE_RECHECK_INTERVAL_MINUTES = 5
 const val DEFAULT_TIMEOUT_SECONDS = 5
 
 object TrackerDefaults {
-  val controlUrls = listOf("https://ya.ru/", "https://vk.com/", "https://mail.ru/")
+  val controlUrls = listOf("https://ya.ru/", "https://vk.com/")
   val testUrls = listOf("https://connectivitycheck.gstatic.com/generate_204")
 }
 
