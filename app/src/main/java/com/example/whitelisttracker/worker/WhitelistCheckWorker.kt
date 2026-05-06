@@ -9,6 +9,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import me.nonick.whitelisttracker.data.CheckSummary
 import me.nonick.whitelisttracker.data.ModeTransition
@@ -130,7 +131,19 @@ class WhitelistCheckWorker(
     )
   }
 
-  private suspend fun probeUrl(url: String, timeoutSeconds: Int): Boolean =
+  private suspend fun probeUrl(url: String, timeoutSeconds: Int): Boolean {
+    repeat(MAX_PROBE_ATTEMPTS) { attemptIndex ->
+      if (probeUrlOnce(url, timeoutSeconds)) return true
+
+      if (attemptIndex < MAX_PROBE_ATTEMPTS - 1) {
+        delay(PROBE_RETRY_DELAY_MILLIS)
+      }
+    }
+
+    return false
+  }
+
+  private suspend fun probeUrlOnce(url: String, timeoutSeconds: Int): Boolean =
     withContext(Dispatchers.IO) {
       var connection: HttpURLConnection? = null
       try {
@@ -151,6 +164,8 @@ class WhitelistCheckWorker(
     const val KEY_CHECKED_COUNT = "checked_count"
     const val KEY_TOTAL_COUNT = "total_count"
     const val KEY_LABEL = "label"
+    private const val MAX_PROBE_ATTEMPTS = 3
+    private const val PROBE_RETRY_DELAY_MILLIS = 1_000L
   }
 }
 
