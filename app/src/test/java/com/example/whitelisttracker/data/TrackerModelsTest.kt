@@ -22,6 +22,36 @@ class TrackerModelsTest {
   }
 
   @Test
+  fun successfulTarget_whenAnyTargetResponds_isTrue() {
+    assertTrue(hasAnySuccessfulTarget(controlSuccessCount = 0, testSuccessCount = 1))
+    assertFalse(hasAnySuccessfulTarget(controlSuccessCount = 0, testSuccessCount = 0))
+  }
+
+  @Test
+  fun modeEndTime_afterConnectionGap_usesPreviousSuccessfulConnection() {
+    assertEquals(
+      1_000L,
+      resolveModeEndAtMillis(
+        checkedAtMillis = 3_000L,
+        previousLastCheckAtMillis = 2_000L,
+        previousLastConnectedAtMillis = 1_000L,
+      ),
+    )
+  }
+
+  @Test
+  fun modeEndTime_withoutConnectionGap_usesCurrentCheck() {
+    assertEquals(
+      3_000L,
+      resolveModeEndAtMillis(
+        checkedAtMillis = 3_000L,
+        previousLastCheckAtMillis = 1_000L,
+        previousLastConnectedAtMillis = 1_000L,
+      ),
+    )
+  }
+
+  @Test
   fun durationFormatting_includesHoursMinutesAndSeconds() {
     assertEquals("1 ч 2 мин 3 сек", formatDurationMillis(3_723_000L))
   }

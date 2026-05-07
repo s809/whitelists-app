@@ -29,6 +29,7 @@ data class TrackerStatus(
   val lastEndedAtMillis: Long? = null,
   val lastDurationMillis: Long? = null,
   val lastCheckAtMillis: Long? = null,
+  val lastConnectedAtMillis: Long? = null,
   val controlSuccessCount: Int = 0,
   val controlTotalCount: Int = TrackerDefaults.controlUrls.size,
   val testSuccessCount: Int = 0,
@@ -54,11 +55,30 @@ sealed interface ModeTransition {
   data class Entered(val startedAtMillis: Long) : ModeTransition
   data class StillActive(val startedAtMillis: Long) : ModeTransition
   data class Ended(val startedAtMillis: Long, val endedAtMillis: Long, val durationMillis: Long) : ModeTransition
+  data class ConnectionUnavailable(val wasActive: Boolean, val startedAtMillis: Long?) : ModeTransition
   object StillInactive : ModeTransition
 }
 
+fun hasAnySuccessfulTarget(controlSuccessCount: Int, testSuccessCount: Int): Boolean =
+  controlSuccessCount > 0 || testSuccessCount > 0
+
 fun isWhitelistMode(controlSuccessCount: Int, testSuccessCount: Int): Boolean =
   controlSuccessCount > 0 && testSuccessCount == 0
+
+fun resolveModeEndAtMillis(
+  checkedAtMillis: Long,
+  previousLastCheckAtMillis: Long?,
+  previousLastConnectedAtMillis: Long?,
+): Long =
+  if (
+    previousLastCheckAtMillis != null &&
+      previousLastConnectedAtMillis != null &&
+      previousLastCheckAtMillis > previousLastConnectedAtMillis
+  ) {
+    previousLastConnectedAtMillis
+  } else {
+    checkedAtMillis
+  }
 
 fun parseUrlList(input: String): List<String> =
   input

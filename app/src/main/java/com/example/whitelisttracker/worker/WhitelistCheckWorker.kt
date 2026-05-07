@@ -75,6 +75,15 @@ class WhitelistCheckWorker(
           WhitelistNotifications.showEnded(applicationContext, transition.startedAtMillis, transition.durationMillis)
           WhitelistWorkScheduler.cancelActiveRechecks(applicationContext, id)
         }
+        is ModeTransition.ConnectionUnavailable -> {
+          if (transition.wasActive) {
+            transition.startedAtMillis?.let { WhitelistNotifications.showActive(applicationContext, it) }
+            WhitelistWorkScheduler.scheduleActiveRecheck(applicationContext, id, settings.activeRecheckIntervalMinutes)
+          } else {
+            WhitelistNotifications.cancelActive(applicationContext)
+            WhitelistWorkScheduler.cancelActiveRechecks(applicationContext, id)
+          }
+        }
         ModeTransition.StillInactive -> {
           WhitelistNotifications.cancelActive(applicationContext)
           WhitelistWorkScheduler.cancelActiveRechecks(applicationContext, id)

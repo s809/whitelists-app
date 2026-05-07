@@ -296,6 +296,7 @@ private fun StatusSection(state: TrackerState) {
         }
         StatusInfoRow("Повторная проверка", "каждые ${state.settings.activeRecheckIntervalMinutes} мин")
         status.lastCheckAtMillis?.let { StatusInfoRow("Последняя проверка", formatTimestamp(it)) }
+        status.lastConnectedAtMillis?.let { StatusInfoRow("Последнее подключение", formatTimestamp(it)) }
       }
     } else if (hasLastMode) {
       StatusInfoGroup("Последний режим") {
@@ -306,6 +307,7 @@ private fun StatusSection(state: TrackerState) {
 
     if (!status.whitelistModeActive) {
       status.lastCheckAtMillis?.let { Text("Последняя проверка: ${formatTimestamp(it)}") }
+      status.lastConnectedAtMillis?.let { Text("Последнее подключение: ${formatTimestamp(it)}") }
     }
     Text("Контрольная группа: ${status.controlSuccessCount}/${status.controlTotalCount} ответили")
     Text("Тестовая группа: ${status.testSuccessCount}/${status.testTotalCount} ответили")

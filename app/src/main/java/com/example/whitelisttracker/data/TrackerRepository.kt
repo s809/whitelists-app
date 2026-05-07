@@ -35,6 +35,7 @@ class TrackerRepository(private val context: Context) {
         lastEndedAtMillis = prefs[Keys.lastEndedAtMillis].takeIfPresent(),
         lastDurationMillis = prefs[Keys.lastDurationMillis].takeIfPresent(),
         lastCheckAtMillis = prefs[Keys.lastCheckAtMillis].takeIfPresent(),
+        lastConnectedAtMillis = prefs[Keys.lastConnectedAtMillis].takeIfPresent(),
         controlSuccessCount = prefs[Keys.controlSuccessCount] ?: 0,
         controlTotalCount = prefs[Keys.controlTotalCount] ?: settings.controlUrls.size,
         testSuccessCount = prefs[Keys.testSuccessCount] ?: 0,
@@ -70,9 +71,15 @@ class TrackerRepository(private val context: Context) {
     context.trackerDataStore.edit { prefs ->
       val wasActive = prefs[Keys.whitelistModeActive] ?: false
       val previousStart = prefs[Keys.modeStartedAtMillis]
+      val previousLastCheckAt = prefs[Keys.lastCheckAtMillis].takeIfPresent()
+      val previousLastConnectedAt = prefs[Keys.lastConnectedAtMillis].takeIfPresent()
+      val anyTargetResponded = hasAnySuccessfulTarget(summary.controlSuccessCount, summary.testSuccessCount)
       val detected = isWhitelistMode(summary.controlSuccessCount, summary.testSuccessCount)
 
       prefs[Keys.lastCheckAtMillis] = summary.checkedAtMillis
+      if (anyTargetResponded) {
+        prefs[Keys.lastConnectedAtMillis] = summary.checkedAtMillis
+      }
       prefs[Keys.controlSuccessCount] = summary.controlSuccessCount
       prefs[Keys.controlTotalCount] = summary.controlTotalCount
       prefs[Keys.testSuccessCount] = summary.testSuccessCount
@@ -81,6 +88,9 @@ class TrackerRepository(private val context: Context) {
 
       transition =
         when {
+          !anyTargetResponded -> {
+            ModeTransition.ConnectionUnavailable(wasActive, previousStart.takeIfPresent())
+          }
           detected && !wasActive -> {
             prefs[Keys.whitelistModeActive] = true
             prefs[Keys.modeStartedAtMillis] = summary.checkedAtMillis
@@ -94,12 +104,18 @@ class TrackerRepository(private val context: Context) {
           }
           wasActive -> {
             val startedAt = previousStart ?: summary.checkedAtMillis
-            val duration = summary.checkedAtMillis - startedAt
+            val endedAt =
+              resolveModeEndAtMillis(
+                checkedAtMillis = summary.checkedAtMillis,
+                previousLastCheckAtMillis = previousLastCheckAt,
+                previousLastConnectedAtMillis = previousLastConnectedAt,
+              )
+            val duration = (endedAt - startedAt).coerceAtLeast(0L)
             prefs[Keys.whitelistModeActive] = false
             prefs[Keys.modeStartedAtMillis] = 0L
-            prefs[Keys.lastEndedAtMillis] = summary.checkedAtMillis
+            prefs[Keys.lastEndedAtMillis] = endedAt
             prefs[Keys.lastDurationMillis] = duration
-            ModeTransition.Ended(startedAt, summary.checkedAtMillis, duration)
+            ModeTransition.Ended(startedAt, endedAt, duration)
           }
           else -> {
             prefs[Keys.whitelistModeActive] = false
@@ -130,6 +146,7 @@ class TrackerRepository(private val context: Context) {
     val lastEndedAtMillis = longPreferencesKey("last_ended_at_millis")
     val lastDurationMillis = longPreferencesKey("last_duration_millis")
     val lastCheckAtMillis = longPreferencesKey("last_check_at_millis")
+    val lastConnectedAtMillis = longPreferencesKey("last_connected_at_millis")
     val controlSuccessCount = intPreferencesKey("control_success_count")
     val controlTotalCount = intPreferencesKey("control_total_count")
     val testSuccessCount = intPreferencesKey("test_success_count")
