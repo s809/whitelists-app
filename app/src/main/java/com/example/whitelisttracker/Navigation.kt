@@ -9,10 +9,12 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import me.nonick.whitelisttracker.ui.main.MainScreen
+import me.nonick.whitelisttracker.ui.main.SettingsScreen
 
 @Composable
 fun MainNavigation() {
   val backStack = rememberNavBackStack(Main)
+  val screenModifier = Modifier.safeDrawingPadding().padding(16.dp)
 
   NavDisplay(
     backStack = backStack,
@@ -20,7 +22,10 @@ fun MainNavigation() {
     entryProvider =
       entryProvider {
         entry<Main> {
-          MainScreen(onItemClick = { navKey -> backStack.add(navKey) }, modifier = Modifier.safeDrawingPadding().padding(16.dp))
+          MainScreen(onItemClick = { navKey -> backStack.add(navKey) }, modifier = screenModifier)
+        }
+        entry<Settings> {
+          SettingsScreen(onBack = { backStack.removeLastOrNull() }, modifier = screenModifier)
         }
       },
   )
