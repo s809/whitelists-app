@@ -76,4 +76,18 @@ class TrackerModelsTest {
     assertEquals(1, sanitizeActiveRecheckIntervalMinutes(0))
     assertEquals(5, sanitizeActiveRecheckIntervalMinutes(5))
   }
+
+  @Test
+  fun probeAttempts_hasThreeAttemptDefaultAndOneAttemptMinimum() {
+    assertEquals(3, TrackerSettings().probeAttempts)
+    assertEquals(1, sanitizeProbeAttempts(0))
+    assertEquals(4, sanitizeProbeAttempts(4))
+  }
+
+  @Test
+  fun probeRetryDelay_hasOneSecondDefaultAndZeroSecondMinimum() {
+    assertEquals(1, TrackerSettings().probeRetryDelaySeconds)
+    assertEquals(0, sanitizeProbeRetryDelaySeconds(-1))
+    assertEquals(2, sanitizeProbeRetryDelaySeconds(2))
+  }
 }

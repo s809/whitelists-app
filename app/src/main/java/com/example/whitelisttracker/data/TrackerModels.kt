@@ -8,6 +8,8 @@ import kotlin.math.max
 const val MIN_INTERVAL_MINUTES = 15
 const val DEFAULT_ACTIVE_RECHECK_INTERVAL_MINUTES = 5
 const val DEFAULT_TIMEOUT_SECONDS = 5
+const val DEFAULT_PROBE_ATTEMPTS = 3
+const val DEFAULT_PROBE_RETRY_DELAY_SECONDS = 1
 
 object TrackerDefaults {
   val controlUrls = listOf("https://ya.ru/", "https://vk.com/")
@@ -19,6 +21,8 @@ data class TrackerSettings(
   val intervalMinutes: Int = MIN_INTERVAL_MINUTES,
   val activeRecheckIntervalMinutes: Int = DEFAULT_ACTIVE_RECHECK_INTERVAL_MINUTES,
   val timeoutSeconds: Int = DEFAULT_TIMEOUT_SECONDS,
+  val probeAttempts: Int = DEFAULT_PROBE_ATTEMPTS,
+  val probeRetryDelaySeconds: Int = DEFAULT_PROBE_RETRY_DELAY_SECONDS,
   val controlUrls: List<String> = TrackerDefaults.controlUrls,
   val testUrls: List<String> = TrackerDefaults.testUrls,
 )
@@ -94,6 +98,10 @@ fun sanitizeIntervalMinutes(value: Int): Int = max(MIN_INTERVAL_MINUTES, value)
 fun sanitizeActiveRecheckIntervalMinutes(value: Int): Int = max(1, value)
 
 fun sanitizeTimeoutSeconds(value: Int): Int = max(1, value)
+
+fun sanitizeProbeAttempts(value: Int): Int = max(1, value)
+
+fun sanitizeProbeRetryDelaySeconds(value: Int): Int = max(0, value)
 
 fun formatDurationMillis(durationMillis: Long): String {
   val totalSeconds = max(0L, durationMillis / 1000L)

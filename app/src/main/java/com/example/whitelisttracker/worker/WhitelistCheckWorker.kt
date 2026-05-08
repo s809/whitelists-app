@@ -108,7 +108,13 @@ class WhitelistCheckWorker(
     val jobs =
       targets.map { target ->
         async {
-          val success = probeUrl(target.url, settings.timeoutSeconds)
+          val success =
+            probeUrl(
+              url = target.url,
+              timeoutSeconds = settings.timeoutSeconds,
+              attempts = settings.probeAttempts,
+              retryDelayMillis = settings.probeRetryDelaySeconds * 1_000L,
+            )
           results.send(ProbeResult(target.kind, success))
         }
       }
@@ -140,12 +146,17 @@ class WhitelistCheckWorker(
     )
   }
 
-  private suspend fun probeUrl(url: String, timeoutSeconds: Int): Boolean {
-    repeat(MAX_PROBE_ATTEMPTS) { attemptIndex ->
+  private suspend fun probeUrl(
+    url: String,
+    timeoutSeconds: Int,
+    attempts: Int,
+    retryDelayMillis: Long,
+  ): Boolean {
+    repeat(attempts) { attemptIndex ->
       if (probeUrlOnce(url, timeoutSeconds)) return true
 
-      if (attemptIndex < MAX_PROBE_ATTEMPTS - 1) {
-        delay(PROBE_RETRY_DELAY_MILLIS)
+      if (attemptIndex < attempts - 1) {
+        delay(retryDelayMillis)
       }
     }
 
@@ -173,8 +184,6 @@ class WhitelistCheckWorker(
     const val KEY_CHECKED_COUNT = "checked_count"
     const val KEY_TOTAL_COUNT = "total_count"
     const val KEY_LABEL = "label"
-    private const val MAX_PROBE_ATTEMPTS = 3
-    private const val PROBE_RETRY_DELAY_MILLIS = 1_000L
   }
 }
 

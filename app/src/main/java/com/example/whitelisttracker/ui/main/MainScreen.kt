@@ -87,7 +87,7 @@ internal fun MainScreen(
   state: TrackerState,
   checkProgress: CheckProgress? = null,
   saveFeedback: SaveFeedback = SaveFeedback.Idle,
-  onSave: (Boolean, String, String, String, String, String) -> Unit,
+  onSave: (Boolean, String, String, String, String, String, String, String) -> Unit,
   onRunNow: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
@@ -97,6 +97,10 @@ internal fun MainScreen(
     mutableStateOf(state.settings.activeRecheckIntervalMinutes.toString())
   }
   var timeoutSeconds by rememberSaveable { mutableStateOf(state.settings.timeoutSeconds.toString()) }
+  var probeAttempts by rememberSaveable { mutableStateOf(state.settings.probeAttempts.toString()) }
+  var probeRetryDelaySeconds by rememberSaveable {
+    mutableStateOf(state.settings.probeRetryDelaySeconds.toString())
+  }
   var controlUrls by rememberSaveable { mutableStateOf(state.settings.controlUrls.joinToString("\n")) }
   var testUrls by rememberSaveable { mutableStateOf(state.settings.testUrls.joinToString("\n")) }
 
@@ -105,6 +109,8 @@ internal fun MainScreen(
     intervalMinutes = state.settings.intervalMinutes.toString()
     activeRecheckIntervalMinutes = state.settings.activeRecheckIntervalMinutes.toString()
     timeoutSeconds = state.settings.timeoutSeconds.toString()
+    probeAttempts = state.settings.probeAttempts.toString()
+    probeRetryDelaySeconds = state.settings.probeRetryDelaySeconds.toString()
     controlUrls = state.settings.controlUrls.joinToString("\n")
     testUrls = state.settings.testUrls.joinToString("\n")
   }
@@ -165,7 +171,24 @@ internal fun MainScreen(
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         modifier = Modifier.weight(1f),
       )
+      OutlinedTextField(
+        value = probeAttempts,
+        onValueChange = { probeAttempts = it.filter(Char::isDigit) },
+        label = { Text("Попытки") },
+        supportingText = { Text("Минимум: 1") },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = Modifier.weight(1f),
+      )
     }
+
+    OutlinedTextField(
+      value = probeRetryDelaySeconds,
+      onValueChange = { probeRetryDelaySeconds = it.filter(Char::isDigit) },
+      label = { Text("Пауза между попытками, сек") },
+      supportingText = { Text("Можно указать 0") },
+      keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+      modifier = Modifier.fillMaxWidth(),
+    )
 
     OutlinedTextField(
       value = controlUrls,
@@ -192,6 +215,8 @@ internal fun MainScreen(
               intervalMinutes,
               activeRecheckIntervalMinutes,
               timeoutSeconds,
+              probeAttempts,
+              probeRetryDelaySeconds,
               controlUrls,
               testUrls,
             )
@@ -397,7 +422,7 @@ fun MainScreenPreview() {
   MyApplicationTheme {
     MainScreen(
       state = TrackerState(),
-      onSave = { _, _, _, _, _, _ -> },
+      onSave = { _, _, _, _, _, _, _, _ -> },
       onRunNow = {},
       modifier = Modifier.width(420.dp),
     )
@@ -410,7 +435,7 @@ fun MainScreenPortraitPreview() {
   MyApplicationTheme {
     MainScreen(
       state = TrackerState(),
-      onSave = { _, _, _, _, _, _ -> },
+      onSave = { _, _, _, _, _, _, _, _ -> },
       onRunNow = {},
     )
   }

@@ -15,7 +15,7 @@ class MainScreenTest {
 
   @Before
   fun setup() {
-    composeTestRule.setContent { MainScreen(state = TrackerState(), onSave = { _, _, _, _, _, _ -> }, onRunNow = {}) }
+    composeTestRule.setContent { MainScreen(state = TrackerState(), onSave = { _, _, _, _, _, _, _, _ -> }, onRunNow = {}) }
   }
 
   @Test
@@ -25,5 +25,7 @@ class MainScreenTest {
     composeTestRule.onNodeWithText("Проверить сейчас").assertExists()
     composeTestRule.onNodeWithText("Контрольные URL").assertExists()
     composeTestRule.onNodeWithText("Перепроверка, мин").assertExists()
+    composeTestRule.onNodeWithText("Попытки").assertExists()
+    composeTestRule.onNodeWithText("Пауза между попытками, сек").assertExists()
   }
 }
