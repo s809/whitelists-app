@@ -51,10 +51,17 @@ object NetworkChangeWatcher {
             synchronized(lock) {
               lastDefaultNetworkSignature = null
             }
+            WhitelistWorkScheduler.cancelNetworkChangeCheck(appContext)
           }
         }
       },
     )
+  }
+
+  fun currentDefaultNetworkSignature(context: Context): String? {
+    val connectivityManager =
+      context.applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    return connectivityManager.defaultNetworkSignature()
   }
 
   private fun handleDefaultNetworkChanged(
@@ -80,11 +87,14 @@ object NetworkChangeWatcher {
 
     scope.launch {
       val settings = TrackerRepository(context).settingsSnapshot()
-      if (settings.monitoringEnabled) {
-        WhitelistWorkScheduler.runAfterNetworkChange(context)
+      if (settings.monitoringEnabled && isLatestDefaultNetworkSignature(signature)) {
+        WhitelistWorkScheduler.runAfterNetworkChange(context, signature)
       }
     }
   }
+
+  private fun isLatestDefaultNetworkSignature(signature: String): Boolean =
+    synchronized(lock) { signature == lastDefaultNetworkSignature }
 
   private fun ConnectivityManager.defaultNetworkSignature(
     network: Network? = activeNetwork,

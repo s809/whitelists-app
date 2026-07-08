@@ -11,7 +11,10 @@ class WhitelistCheckWorker(
   params: WorkerParameters,
 ) : CoroutineWorker(appContext, params) {
   override suspend fun doWork(): Result {
+    val expectedNetworkSignature = inputData.getString(KEY_EXPECTED_NETWORK_SIGNATURE)
+
     suspend fun publishProgress(progress: CheckProgressUpdate) {
+      ensureNetworkStillMatches(expectedNetworkSignature)
       setProgress(
         workDataOf(
           KEY_CHECKED_COUNT to progress.checkedCount,
@@ -28,6 +31,7 @@ class WhitelistCheckWorker(
     }
 
     try {
+      ensureNetworkStillMatches(expectedNetworkSignature)
       when (val result = WhitelistCheckRunner.run(applicationContext, ::publishProgress)) {
         CheckRunResult.MonitoringDisabled -> {
           WhitelistWorkScheduler.cancelActiveRechecks(applicationContext, id)
@@ -39,8 +43,19 @@ class WhitelistCheckWorker(
       }
 
       return Result.success()
+    } catch (_: StaleNetworkCheckException) {
+      return Result.success()
     } finally {
       WhitelistNotifications.cancelCheckProgress(applicationContext)
+    }
+  }
+
+  private fun ensureNetworkStillMatches(expectedNetworkSignature: String?) {
+    if (expectedNetworkSignature == null) return
+
+    val currentNetworkSignature = NetworkChangeWatcher.currentDefaultNetworkSignature(applicationContext)
+    if (currentNetworkSignature != expectedNetworkSignature) {
+      throw StaleNetworkCheckException()
     }
   }
 
@@ -88,5 +103,8 @@ class WhitelistCheckWorker(
     const val KEY_CHECKED_COUNT = "checked_count"
     const val KEY_TOTAL_COUNT = "total_count"
     const val KEY_LABEL = "label"
+    const val KEY_EXPECTED_NETWORK_SIGNATURE = "expected_network_signature"
   }
 }
+
+private class StaleNetworkCheckException : RuntimeException()

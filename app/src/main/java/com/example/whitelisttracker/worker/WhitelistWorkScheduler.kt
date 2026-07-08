@@ -9,6 +9,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import androidx.work.workDataOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import me.nonick.whitelisttracker.data.TrackerSettings
@@ -22,7 +23,6 @@ object WhitelistWorkScheduler {
   private const val PERIODIC_WORK_NAME = "whitelist_tracker_periodic_check"
   private const val NETWORK_CHANGE_WORK_NAME = "whitelist_tracker_network_change_check"
   private const val ACTIVE_RECHECK_TAG = "whitelist_tracker_active_recheck"
-  private const val NETWORK_CHANGE_DEBOUNCE_SECONDS = 15L
 
   fun schedule(context: Context, settings: TrackerSettings) {
     val workManager = WorkManager.getInstance(context)
@@ -57,17 +57,21 @@ object WhitelistWorkScheduler {
     WorkManager.getInstance(context).enqueue(request)
   }
 
-  fun runAfterNetworkChange(context: Context) {
+  fun runAfterNetworkChange(context: Context, networkSignature: String) {
     val request =
       OneTimeWorkRequestBuilder<WhitelistCheckWorker>()
         .addTag(CHECK_WORK_TAG)
-        .setInitialDelay(NETWORK_CHANGE_DEBOUNCE_SECONDS, TimeUnit.SECONDS)
+        .setInputData(workDataOf(WhitelistCheckWorker.KEY_EXPECTED_NETWORK_SIGNATURE to networkSignature))
         .setConstraints(networkConstraints())
         .build()
 
     WorkManager
       .getInstance(context)
       .enqueueUniqueWork(NETWORK_CHANGE_WORK_NAME, ExistingWorkPolicy.REPLACE, request)
+  }
+
+  fun cancelNetworkChangeCheck(context: Context) {
+    WorkManager.getInstance(context).cancelUniqueWork(NETWORK_CHANGE_WORK_NAME)
   }
 
   suspend fun scheduleActiveRecheck(context: Context, currentWorkId: UUID, delayMinutes: Int) {

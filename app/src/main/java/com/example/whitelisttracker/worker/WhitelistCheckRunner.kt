@@ -1,6 +1,7 @@
 package me.nonick.whitelisttracker.worker
 
 import android.content.Context
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -128,6 +129,8 @@ object WhitelistCheckRunner {
         connection.readTimeout = timeoutSeconds * 1000
         connection.requestMethod = "GET"
         connection.responseCode >= 100
+      } catch (exception: CancellationException) {
+        throw exception
       } catch (_: Exception) {
         false
       } finally {
