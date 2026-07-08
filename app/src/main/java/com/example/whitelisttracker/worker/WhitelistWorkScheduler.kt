@@ -30,6 +30,7 @@ object WhitelistWorkScheduler {
       workManager.cancelUniqueWork(PERIODIC_WORK_NAME)
       workManager.cancelUniqueWork(NETWORK_CHANGE_WORK_NAME)
       cancelActiveRechecks(context)
+      WhitelistActiveMonitorService.stop(context)
       WhitelistNotifications.cancelCheckProgress(context)
       WhitelistNotifications.cancelActive(context)
       return

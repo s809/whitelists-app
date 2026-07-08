@@ -4,90 +4,38 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
-import me.nonick.whitelisttracker.data.CheckSummary
 import me.nonick.whitelisttracker.data.ModeTransition
-import me.nonick.whitelisttracker.data.TrackerRepository
-import me.nonick.whitelisttracker.data.TrackerSettings
-import java.net.HttpURLConnection
-import java.net.URL
 
 class WhitelistCheckWorker(
   appContext: Context,
   params: WorkerParameters,
 ) : CoroutineWorker(appContext, params) {
   override suspend fun doWork(): Result {
-    val repository = TrackerRepository(applicationContext)
-    val settings = repository.settingsSnapshot()
-
-    if (!settings.monitoringEnabled) {
-      WhitelistWorkScheduler.cancelActiveRechecks(applicationContext, id)
-      WhitelistNotifications.cancelCheckProgress(applicationContext)
-      WhitelistNotifications.cancelActive(applicationContext)
-      return Result.success()
-    }
-
-    val totalCount = settings.controlUrls.size + settings.testUrls.size
-    suspend fun publishProgress(checkedCount: Int, label: String) {
+    suspend fun publishProgress(progress: CheckProgressUpdate) {
       setProgress(
         workDataOf(
-          KEY_CHECKED_COUNT to checkedCount,
-          KEY_TOTAL_COUNT to totalCount,
-          KEY_LABEL to label,
+          KEY_CHECKED_COUNT to progress.checkedCount,
+          KEY_TOTAL_COUNT to progress.totalCount,
+          KEY_LABEL to progress.label,
         ),
       )
-      WhitelistNotifications.showCheckProgress(applicationContext, checkedCount, totalCount, label)
+      WhitelistNotifications.showCheckProgress(
+        applicationContext,
+        progress.checkedCount,
+        progress.totalCount,
+        progress.label,
+      )
     }
 
     try {
-      publishProgress(0, "Подготовка проверки")
-      val probeSummary =
-        probeUrlsInParallel(settings) { checkedCount ->
-          publishProgress(checkedCount, "Проверено: $checkedCount/$totalCount")
-        }
-
-      val summary =
-        CheckSummary(
-          checkedAtMillis = System.currentTimeMillis(),
-          controlSuccessCount = probeSummary.controlSuccessCount,
-          controlTotalCount = settings.controlUrls.size,
-          testSuccessCount = probeSummary.testSuccessCount,
-          testTotalCount = settings.testUrls.size,
-          error = null,
-        )
-
-      when (val transition = repository.applyCheckSummary(summary)) {
-        is ModeTransition.Entered -> {
-          WhitelistNotifications.showActive(applicationContext, transition.startedAtMillis)
-          WhitelistWorkScheduler.scheduleActiveRecheck(applicationContext, id, settings.activeRecheckIntervalMinutes)
-        }
-        is ModeTransition.StillActive -> {
-          WhitelistNotifications.showActive(applicationContext, transition.startedAtMillis)
-          WhitelistWorkScheduler.scheduleActiveRecheck(applicationContext, id, settings.activeRecheckIntervalMinutes)
-        }
-        is ModeTransition.Ended -> {
-          WhitelistNotifications.showEnded(applicationContext, transition.startedAtMillis, transition.durationMillis)
+      when (val result = WhitelistCheckRunner.run(applicationContext, ::publishProgress)) {
+        CheckRunResult.MonitoringDisabled -> {
           WhitelistWorkScheduler.cancelActiveRechecks(applicationContext, id)
-        }
-        is ModeTransition.ConnectionUnavailable -> {
-          if (transition.wasActive) {
-            transition.startedAtMillis?.let { WhitelistNotifications.showActive(applicationContext, it) }
-            WhitelistWorkScheduler.scheduleActiveRecheck(applicationContext, id, settings.activeRecheckIntervalMinutes)
-          } else {
-            WhitelistNotifications.cancelActive(applicationContext)
-            WhitelistWorkScheduler.cancelActiveRechecks(applicationContext, id)
-          }
-        }
-        ModeTransition.StillInactive -> {
+          WhitelistActiveMonitorService.stop(applicationContext)
+          WhitelistNotifications.cancelCheckProgress(applicationContext)
           WhitelistNotifications.cancelActive(applicationContext)
-          WhitelistWorkScheduler.cancelActiveRechecks(applicationContext, id)
         }
+        is CheckRunResult.Completed -> handleTransition(result)
       }
 
       return Result.success()
@@ -96,89 +44,45 @@ class WhitelistCheckWorker(
     }
   }
 
-  private suspend fun probeUrlsInParallel(
-    settings: TrackerSettings,
-    onProgress: suspend (checkedCount: Int) -> Unit,
-  ): ProbeSummary = coroutineScope {
-    val targets =
-      settings.controlUrls.map { ProbeTarget(ProbeKind.Control, it) } +
-        settings.testUrls.map { ProbeTarget(ProbeKind.Test, it) }
-    val results = Channel<ProbeResult>(Channel.UNLIMITED)
-
-    val jobs =
-      targets.map { target ->
-        async {
-          val success =
-            probeUrl(
-              url = target.url,
-              timeoutSeconds = settings.timeoutSeconds,
-              attempts = settings.probeAttempts,
-              retryDelayMillis = settings.probeRetryDelaySeconds * 1_000L,
-            )
-          results.send(ProbeResult(target.kind, success))
+  private suspend fun handleTransition(result: CheckRunResult.Completed) {
+    when (val transition = result.transition) {
+      is ModeTransition.Entered -> {
+        startActiveMonitorOrScheduleRecheck(transition.startedAtMillis, result.settings.activeRecheckIntervalMinutes)
+      }
+      is ModeTransition.StillActive -> {
+        startActiveMonitorOrScheduleRecheck(transition.startedAtMillis, result.settings.activeRecheckIntervalMinutes)
+      }
+      is ModeTransition.Ended -> {
+        WhitelistActiveMonitorService.stop(applicationContext)
+        WhitelistNotifications.showEnded(applicationContext, transition.startedAtMillis, transition.durationMillis)
+        WhitelistWorkScheduler.cancelActiveRechecks(applicationContext, id)
+      }
+      is ModeTransition.ConnectionUnavailable -> {
+        if (transition.wasActive) {
+          val startedAtMillis = transition.startedAtMillis ?: System.currentTimeMillis()
+          startActiveMonitorOrScheduleRecheck(startedAtMillis, result.settings.activeRecheckIntervalMinutes)
+        } else {
+          WhitelistActiveMonitorService.stop(applicationContext)
+          WhitelistNotifications.cancelActive(applicationContext)
+          WhitelistWorkScheduler.cancelActiveRechecks(applicationContext, id)
         }
       }
-
-    var checkedCount = 0
-    var controlSuccessCount = 0
-    var testSuccessCount = 0
-
-    repeat(targets.size) {
-      val result = results.receive()
-      checkedCount += 1
-
-      if (result.success) {
-        when (result.kind) {
-          ProbeKind.Control -> controlSuccessCount += 1
-          ProbeKind.Test -> testSuccessCount += 1
-        }
+      ModeTransition.StillInactive -> {
+        WhitelistActiveMonitorService.stop(applicationContext)
+        WhitelistNotifications.cancelActive(applicationContext)
+        WhitelistWorkScheduler.cancelActiveRechecks(applicationContext, id)
       }
-
-      onProgress(checkedCount)
     }
-
-    jobs.awaitAll()
-    results.close()
-
-    ProbeSummary(
-      controlSuccessCount = controlSuccessCount,
-      testSuccessCount = testSuccessCount,
-    )
   }
 
-  private suspend fun probeUrl(
-    url: String,
-    timeoutSeconds: Int,
-    attempts: Int,
-    retryDelayMillis: Long,
-  ): Boolean {
-    repeat(attempts) { attemptIndex ->
-      if (probeUrlOnce(url, timeoutSeconds)) return true
-
-      if (attemptIndex < attempts - 1) {
-        delay(retryDelayMillis)
-      }
+  private suspend fun startActiveMonitorOrScheduleRecheck(startedAtMillis: Long, activeRecheckIntervalMinutes: Int) {
+    if (WhitelistActiveMonitorService.start(applicationContext, startedAtMillis)) {
+      WhitelistWorkScheduler.cancelActiveRechecks(applicationContext, id)
+    } else {
+      WhitelistNotifications.showActive(applicationContext, startedAtMillis)
+      WhitelistWorkScheduler.scheduleActiveRecheck(applicationContext, id, activeRecheckIntervalMinutes)
     }
-
-    return false
   }
-
-  private suspend fun probeUrlOnce(url: String, timeoutSeconds: Int): Boolean =
-    withContext(Dispatchers.IO) {
-      var connection: HttpURLConnection? = null
-      try {
-        connection = URL(url).openConnection() as HttpURLConnection
-        connection.instanceFollowRedirects = true
-        connection.connectTimeout = timeoutSeconds * 1000
-        connection.readTimeout = timeoutSeconds * 1000
-        connection.requestMethod = "GET"
-        connection.responseCode >= 100
-      } catch (_: Exception) {
-        false
-      } finally {
-        connection?.disconnect()
-      }
-    }
 
   companion object {
     const val KEY_CHECKED_COUNT = "checked_count"
@@ -186,23 +90,3 @@ class WhitelistCheckWorker(
     const val KEY_LABEL = "label"
   }
 }
-
-private enum class ProbeKind {
-  Control,
-  Test,
-}
-
-private data class ProbeTarget(
-  val kind: ProbeKind,
-  val url: String,
-)
-
-private data class ProbeResult(
-  val kind: ProbeKind,
-  val success: Boolean,
-)
-
-private data class ProbeSummary(
-  val controlSuccessCount: Int,
-  val testSuccessCount: Int,
-)

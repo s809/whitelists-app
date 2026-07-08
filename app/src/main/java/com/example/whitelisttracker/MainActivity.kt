@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import me.nonick.whitelisttracker.data.TrackerRepository
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import me.nonick.whitelisttracker.theme.MyApplicationTheme
+import me.nonick.whitelisttracker.worker.WhitelistActiveMonitorService
 import me.nonick.whitelisttracker.worker.WhitelistWorkScheduler
 
 class MainActivity : ComponentActivity() {
@@ -45,8 +47,16 @@ class MainActivity : ComponentActivity() {
 
   private fun schedulePeriodicChecks() {
     lifecycleScope.launch {
-      val settings = TrackerRepository(applicationContext).settingsSnapshot()
-      WhitelistWorkScheduler.schedule(applicationContext, settings)
+      val repository = TrackerRepository(applicationContext)
+      val state = repository.state.first()
+      WhitelistWorkScheduler.schedule(applicationContext, state.settings)
+      if (state.settings.monitoringEnabled && state.status.whitelistModeActive) {
+        WhitelistActiveMonitorService.start(
+          applicationContext,
+          state.status.modeStartedAtMillis ?: System.currentTimeMillis(),
+        )
+        WhitelistWorkScheduler.cancelActiveRechecks(applicationContext)
+      }
     }
   }
 }

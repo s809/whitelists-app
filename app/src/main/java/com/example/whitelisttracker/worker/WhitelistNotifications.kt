@@ -1,6 +1,7 @@
 package me.nonick.whitelisttracker.worker
 
 import android.Manifest
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -19,7 +20,7 @@ import me.nonick.whitelisttracker.data.formatTimestamp
 object WhitelistNotifications {
   private const val CHANNEL_ID = "whitelist_tracker_status_silent"
   private const val PROGRESS_CHANNEL_ID = "whitelist_tracker_progress_silent"
-  private const val ACTIVE_NOTIFICATION_ID = 1001
+  const val ACTIVE_NOTIFICATION_ID = 1001
   private const val ENDED_NOTIFICATION_ID = 1002
   private const val CHECK_PROGRESS_NOTIFICATION_ID = 1003
 
@@ -45,24 +46,8 @@ object WhitelistNotifications {
 
   fun showActive(context: Context, startedAtMillis: Long) {
     if (!canPostNotifications(context)) return
-    ensureChannel(context)
 
-    val durationMillis = System.currentTimeMillis() - startedAtMillis
-    val description = whitelistDescription(startedAtMillis, durationMillis)
-    val notification =
-      NotificationCompat.Builder(context, CHANNEL_ID)
-        .setSmallIcon(R.drawable.ic_launcher_foreground)
-        .setContentTitle("Обнаружен режим белых списков")
-        .setContentText(description)
-        .setStyle(NotificationCompat.BigTextStyle().bigText(description))
-        .setContentIntent(contentIntent(context))
-        .setOngoing(true)
-        .setOnlyAlertOnce(true)
-        .setSilent(true)
-        .setPriority(NotificationCompat.PRIORITY_HIGH)
-        .build()
-
-    NotificationManagerCompat.from(context).notify(ACTIVE_NOTIFICATION_ID, notification)
+    NotificationManagerCompat.from(context).notify(ACTIVE_NOTIFICATION_ID, activeNotification(context, startedAtMillis))
   }
 
   fun showEnded(context: Context, startedAtMillis: Long, durationMillis: Long) {
@@ -93,6 +78,24 @@ object WhitelistNotifications {
 
   fun cancelCheckProgress(context: Context) {
     NotificationManagerCompat.from(context).cancel(CHECK_PROGRESS_NOTIFICATION_ID)
+  }
+
+  fun activeNotification(context: Context, startedAtMillis: Long): Notification {
+    ensureChannel(context)
+
+    val durationMillis = System.currentTimeMillis() - startedAtMillis
+    val description = whitelistDescription(startedAtMillis, durationMillis)
+    return NotificationCompat.Builder(context, CHANNEL_ID)
+      .setSmallIcon(R.drawable.ic_launcher_foreground)
+      .setContentTitle("Обнаружен режим белых списков")
+      .setContentText(description)
+      .setStyle(NotificationCompat.BigTextStyle().bigText(description))
+      .setContentIntent(contentIntent(context))
+      .setOngoing(true)
+      .setOnlyAlertOnce(true)
+      .setSilent(true)
+      .setPriority(NotificationCompat.PRIORITY_HIGH)
+      .build()
   }
 
   private fun ensureChannel(context: Context) {
